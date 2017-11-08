@@ -4,7 +4,7 @@
 #include "Adafruit_LIS3DH.h"
 #include <Adafruit_Sensor.h>
 
-#include <SDFat.h>
+#include <SdFat.h>
 #include "RTClib.h"
 
 const int chipSelect = 4;
@@ -12,9 +12,22 @@ const int chipSelect = 4;
 String dataString = "";
 File dataFile;
 
+SdFat SD;
+
 // I2C
 Adafruit_LIS3DH lis = Adafruit_LIS3DH();
 RTC_Millis rtc;
+
+void dateTime(uint16_t* date, uint16_t* time) {
+
+  DateTime now = rtc.now();
+
+  // return date using FAT_DATE macro to format fields
+  *date = FAT_DATE(now.year(), now.month(), now.day());
+
+  // return time using FAT_TIME macro to format fields
+  *time = FAT_TIME(now.hour(), now.minute(), now.second());
+}
 
 void setup(void) {
 
@@ -38,7 +51,7 @@ void setup(void) {
   Serial.print("Initializing SD card...");
 
   // see if the card is present and can be initialized:
-  if (!SD.begin(chipSelect)) {
+  if (!SD.begin(chipSelect, SD_SCK_MHZ(50))) {
     Serial.println("Card failed, or not present");
     // don't do anything more:
     return;
@@ -63,19 +76,22 @@ void setup(void) {
   Serial.println();
 
 
-  char fileName[10];
-  //snprintf(fileName, 26, "data_%i-%i-%i_%i%i%i.txt", now.year(), now.month(), now.day(), now.hour(), now.minute(), now.second());
-  snprintf(fileName, "test%s.txt", "1");
+  char fileName[26];
+  snprintf(fileName, 26, "data_%i-%i-%i_%i%i%i.txt", now.year(), now.month(), now.day(), now.hour(), now.minute(), now.second());
+
 
 
   Serial.println(fileName);
 
-  dataFile = SD.open(fileName, FILE_WRITE);
+  SdFile::dateTimeCallback(dateTime);
+
+  dataFile = SD.open(fileName, O_CREAT | O_WRITE | O_EXCL);
   if(dataFile) {
     Serial.println("Success opening file");
   }
   else {
     Serial.println("Error opening file");
+    return;
   }
 }
 
@@ -111,6 +127,7 @@ void loop() {
   }
   else {
     Serial.println("File not open");
+    return;
   }
   delay(100);
 

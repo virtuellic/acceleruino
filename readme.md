@@ -21,7 +21,7 @@ Datalogger designed to track forces experienced during shipping
 ### TODO
 
 + [x] Convert to SDFat library
-  + supports long filenames
+  + supports long filenames & file create dates
   + better performance
 + [ ] Add constants for initialization parameters
   + range
