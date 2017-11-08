@@ -4,7 +4,7 @@
 #include "Adafruit_LIS3DH.h"
 #include <Adafruit_Sensor.h>
 
-#include <SD.h>
+#include <SDFat.h>
 #include "RTClib.h"
 
 const int chipSelect = 4;
@@ -16,21 +16,21 @@ File dataFile;
 Adafruit_LIS3DH lis = Adafruit_LIS3DH();
 RTC_Millis rtc;
 
-void setup(void) {  
-  
-  while (!Serial);     
+void setup(void) {
+
+  while (!Serial);
   Serial.begin(9600);
   Serial.println("LIS3DH test!");
-  
+
   while (!lis.begin(0x18)) {   // change this to 0x19 for alternative i2c address
     Serial.println("Couldnt start");
     delay (1000);
   }
   Serial.println("LIS3DH found!");
-  
+
   lis.setRange(LIS3DH_RANGE_2_G);   // 2, 4, 8 or 16 G!
-  
-  Serial.print("Range = "); Serial.print(2 << lis.getRange());  
+
+  Serial.print("Range = "); Serial.print(2 << lis.getRange());
   Serial.println("G");
 
   lis.setDataRate(LIS3DH_DATARATE_25_HZ);
@@ -48,7 +48,7 @@ void setup(void) {
 
   rtc.begin(DateTime(F(__DATE__), F(__TIME__)));
   DateTime now = rtc.now();
-    
+
   Serial.print(now.year(), DEC);
   Serial.print('/');
   Serial.print(now.month(), DEC);
@@ -60,19 +60,19 @@ void setup(void) {
   Serial.print(now.minute(), DEC);
   Serial.print(':');
   Serial.print(now.second(), DEC);
-  Serial.println();  
+  Serial.println();
 
 
   char fileName[10];
   //snprintf(fileName, 26, "data_%i-%i-%i_%i%i%i.txt", now.year(), now.month(), now.day(), now.hour(), now.minute(), now.second());
   snprintf(fileName, "test%s.txt", "1");
-  
-  
+
+
   Serial.println(fileName);
-  
+
   dataFile = SD.open(fileName, FILE_WRITE);
   if(dataFile) {
-    Serial.println("Success opening file");   
+    Serial.println("Success opening file");
   }
   else {
     Serial.println("Error opening file");
@@ -82,18 +82,18 @@ void setup(void) {
 void loop() {
   lis.read();      // get X Y and Z data at once
   // Then print out the raw data
-  Serial.print("X:  "); Serial.print(lis.x); 
-  Serial.print("  \t\t\tY:  "); Serial.print(lis.y); 
-  Serial.print("  \tZ:  "); Serial.print(lis.z); 
+  Serial.print("X:  "); Serial.print(lis.x);
+  Serial.print("  \t\t\tY:  "); Serial.print(lis.y);
+  Serial.print("  \tZ:  "); Serial.print(lis.z);
 
-  /* Or....get a new sensor event, normalized */ 
-  sensors_event_t event; 
+  /* Or....get a new sensor event, normalized */
+  sensors_event_t event;
   lis.getEvent(&event);
-  
+
   /* Display the results (acceleration is measured in m/s^2) */
   Serial.print("\t\tX: "); Serial.print(event.acceleration.x);
-  Serial.print(" \tY: "); Serial.print(event.acceleration.y); 
-  Serial.print(" \tZ: "); Serial.print(event.acceleration.z); 
+  Serial.print(" \tY: "); Serial.print(event.acceleration.y);
+  Serial.print(" \tZ: "); Serial.print(event.acceleration.z);
   Serial.println(" m/s^2 ");
 
   dataString = "";
@@ -102,7 +102,7 @@ void loop() {
   dataString += String(lis.y);
   dataString += ",";
   dataString += String(lis.z);
-  
+
   if (dataFile) {
     dataFile.println(dataString);
     dataFile.flush();
@@ -113,6 +113,6 @@ void loop() {
     Serial.println("File not open");
   }
   delay(100);
- 
-  
+
+
 }
