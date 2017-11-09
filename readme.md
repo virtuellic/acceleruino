@@ -23,6 +23,7 @@ Datalogger designed to track forces experienced during shipping
 + [x] Convert to SDFat library
   + supports long filenames & file create dates
   + better performance
++ [x] Add support for external DS3231 RTC
 + [ ] Add constants for initialization parameters
   + range
   + sensitivity (ie. 2G - 16G)
