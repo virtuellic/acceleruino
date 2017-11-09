@@ -16,7 +16,8 @@ SdFat SD;
 
 // I2C
 Adafruit_LIS3DH lis = Adafruit_LIS3DH();
-RTC_Millis rtc;
+//RTC_Millis rtc;
+RTC_DS3231 rtc;
 
 void dateTime(uint16_t* date, uint16_t* time) {
 
@@ -59,7 +60,22 @@ void setup(void) {
   Serial.println("card initialized.");
   Serial.println("Opening dataFile.");
 
-  rtc.begin(DateTime(F(__DATE__), F(__TIME__)));
+ //for internal rtc
+ //rtc.begin(DateTime(F(__DATE__), F(__TIME__)))
+
+  // using DS3231
+  if (! rtc.begin()) {
+    Serial.println("Couldn't find RTC");
+    while (1);
+  }
+
+  if (rtc.lostPower()) {
+    Serial.println("RTC lost power, lets set the time!");
+    // following line sets the RTC to the date & time this sketch was compiled
+    rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+    
+  }
+
   DateTime now = rtc.now();
 
   Serial.print(now.year(), DEC);
