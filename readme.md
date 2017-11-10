@@ -18,6 +18,10 @@ Datalogger designed to track forces experienced during shipping
 4. Want GPS data included in the logs (or cellular connection could provide location data, if possible)
 5. battery powered and need 1-2 weeks worth of data
 
+### Open Questions
+
+1.  How frequently do the data points need to be logged?
+
 ### TODO
 
 + [x] Convert to SDFat library
@@ -25,8 +29,7 @@ Datalogger designed to track forces experienced during shipping
   + better performance
 + [x] Add support for external DS3231 RTC
 + [ ] Add constants for initialization parameters
-  + range
-  + sensitivity (ie. 2G - 16G)
+  + range (ie. 2G - 16G)
   + sample rate
   + trigger threshold
   + wake interval (ie. 30 minutes)

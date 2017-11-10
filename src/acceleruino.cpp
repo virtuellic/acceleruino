@@ -7,7 +7,23 @@
 #include <SdFat.h>
 #include "RTClib.h"
 
+#define RANGE LIS3DH_RANGE_2_G  // LIS3DH_RANGE_<N>_G where N in (2, 4, 8, 16)
+/* Valid Rate Values
+LIS3DH_DATARATE_400_HZ     = 0b0111, //  400Hz
+LIS3DH_DATARATE_200_HZ     = 0b0110, //  200Hz
+LIS3DH_DATARATE_100_HZ     = 0b0101, //  100Hz
+LIS3DH_DATARATE_50_HZ      = 0b0100, //   50Hz
+LIS3DH_DATARATE_25_HZ      = 0b0011, //   25Hz
+LIS3DH_DATARATE_10_HZ      = 0b0010, // 10 Hz
+LIS3DH_DATARATE_1_HZ       = 0b0001, // 1 Hz
+LIS3DH_DATARATE_POWERDOWN  = 0,
+LIS3DH_DATARATE_LOWPOWER_1K6HZ  = 0b1000,
+LIS3DH_DATARATE_LOWPOWER_5KHZ  =  0b1001
+*/
+#define RATE LIS3DH_DATARATE_25_HZ
+
 const int chipSelect = 4;
+volatile int stopFlag = 0;
 
 String dataString = "";
 File dataFile;
@@ -15,11 +31,11 @@ File dataFile;
 SdFat SD;
 
 // I2C
-Adafruit_LIS3DH lis = Adafruit_LIS3DH();
-//RTC_Millis rtc;
+Adafruit_LIS3DH accel = Adafruit_LIS3DH();
+
 RTC_DS3231 rtc;
 
-void dateTime(uint16_t* date, uint16_t* time) {
+void sd_dateTime_callback(uint16_t* date, uint16_t* time) {
 
   DateTime now = rtc.now();
 
@@ -30,76 +46,118 @@ void dateTime(uint16_t* date, uint16_t* time) {
   *time = FAT_TIME(now.hour(), now.minute(), now.second());
 }
 
+DateTime getGPRSDateTime() {
+
+  return DateTime(F(__DATE__), F(__TIME__));
+
+}
+void logAccelData(int x, int y, int z) {
+
+  DateTime logtime = rtc.now();
+  char ts[18];
+  snprintf(ts, sizeof(ts), "%i-%i-%i %i%i%i", logtime.year(), logtime.month(), logtime.day(), logtime.hour(), logtime.minute(), logtime.second());
+
+  Serial.print(ts);
+  Serial.print("  \tX:  "); Serial.print(x);
+  Serial.print("  \tY:  "); Serial.print(y);
+  Serial.print("  \tZ:  "); Serial.println(z);
+
+  if (dataFile) {
+    dataFile.print(ts);
+    dataFile.print(",");
+    dataFile.print(x);
+    dataFile.print(",");
+    dataFile.print(y);
+    dataFile.print(",");
+    dataFile.println(z);
+
+    dataFile.flush();
+
+  }
+  else {
+    Serial.println("File not open");
+    stopFlag = 1;
+    return;
+  }
+
+
+}
+
 void setup(void) {
 
   while (!Serial);
   Serial.begin(9600);
-  Serial.println("LIS3DH test!");
+  Serial.println();
+  Serial.println("##############################");
+  Serial.println("Acceleruino Data Logger");
+  Serial.println("Measurement Solutions LLC");
+  Serial.println("www.MEASOL.com");
+  Serial.println("##############################");
+  Serial.println();
 
-  while (!lis.begin(0x18)) {   // change this to 0x19 for alternative i2c address
-    Serial.println("Couldnt start");
+  // BEGIN Accelerometer Initialization
+  Serial.println("Initializing accelerometer....");
+  int RETRY_VAL = 10;
+  int cnt = 0;
+  while (!accel.begin(0x18)) {
+    Serial.print("Error inializing accelerometer...");
+    Serial.println("retrying in 1 second");
     delay (1000);
+    cnt++;
+    if(cnt > RETRY_VAL) {
+      stopFlag = 1;
+      Serial.println("Accelerometer failed to initialize");
+      return;
+    }
   }
-  Serial.println("LIS3DH found!");
 
-  lis.setRange(LIS3DH_RANGE_2_G);   // 2, 4, 8 or 16 G!
+  accel.setRange(RANGE);   // 2, 4, 8 or 16 G!
 
-  Serial.print("Range = "); Serial.print(2 << lis.getRange());
+  Serial.print("Range = "); Serial.print(2 << accel.getRange());
   Serial.println("G");
 
-  lis.setDataRate(LIS3DH_DATARATE_25_HZ);
+  accel.setDataRate(RATE);
 
+  Serial.println("Success initializing accelerometer");
+  // END Accelerometer initialization
+
+  // BEGIN RTC initialization
+  Serial.println("Initializing DS3231 RTC");
+  if (! rtc.begin()) {
+    Serial.println("Couldn't find RTC");
+    stopFlag = 1;
+    return;
+  }
+
+  if (rtc.lostPower()) {
+    Serial.println("RTC lost power, lets set the time!");
+    rtc.adjust(getGPRSDateTime());
+  }
+  Serial.println("Success initializing RTC");
+  // END RTC initialization
+
+  // BEGIN SD Card initialization
   Serial.print("Initializing SD card...");
 
   // see if the card is present and can be initialized:
   if (!SD.begin(chipSelect, SD_SCK_MHZ(50))) {
     Serial.println("Card failed, or not present");
     // don't do anything more:
+    stopFlag = 1;
     return;
   }
   Serial.println("card initialized.");
-  Serial.println("Opening dataFile.");
+  // END SD Card initialization
 
- //for internal rtc
- //rtc.begin(DateTime(F(__DATE__), F(__TIME__)))
-
-  // using DS3231
-  if (! rtc.begin()) {
-    Serial.println("Couldn't find RTC");
-    while (1);
-  }
-
-  if (rtc.lostPower()) {
-    Serial.println("RTC lost power, lets set the time!");
-    // following line sets the RTC to the date & time this sketch was compiled
-    rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
-    
-  }
-
+  // BEGIN creating new logfile
   DateTime now = rtc.now();
-
-  Serial.print(now.year(), DEC);
-  Serial.print('/');
-  Serial.print(now.month(), DEC);
-  Serial.print('/');
-  Serial.print(now.day(), DEC);
-  Serial.print(' ');
-  Serial.print(now.hour(), DEC);
-  Serial.print(':');
-  Serial.print(now.minute(), DEC);
-  Serial.print(':');
-  Serial.print(now.second(), DEC);
-  Serial.println();
-
 
   char fileName[26];
   snprintf(fileName, 26, "data_%i-%i-%i_%i%i%i.txt", now.year(), now.month(), now.day(), now.hour(), now.minute(), now.second());
-
-
-
+  Serial.print("Creating logfile: ");
   Serial.println(fileName);
 
-  SdFile::dateTimeCallback(dateTime);
+  SdFile::dateTimeCallback(sd_dateTime_callback); // sets callback for file timestamp
 
   dataFile = SD.open(fileName, O_CREAT | O_WRITE | O_EXCL);
   if(dataFile) {
@@ -107,45 +165,24 @@ void setup(void) {
   }
   else {
     Serial.println("Error opening file");
+    stopFlag = 1;
     return;
   }
+  // END logfile creation
+
 }
 
 void loop() {
-  lis.read();      // get X Y and Z data at once
-  // Then print out the raw data
-  Serial.print("X:  "); Serial.print(lis.x);
-  Serial.print("  \t\t\tY:  "); Serial.print(lis.y);
-  Serial.print("  \tZ:  "); Serial.print(lis.z);
 
-  /* Or....get a new sensor event, normalized */
-  sensors_event_t event;
-  lis.getEvent(&event);
+  //stopFlag = 1;
+  while(stopFlag);
 
-  /* Display the results (acceleration is measured in m/s^2) */
-  Serial.print("\t\tX: "); Serial.print(event.acceleration.x);
-  Serial.print(" \tY: "); Serial.print(event.acceleration.y);
-  Serial.print(" \tZ: "); Serial.print(event.acceleration.z);
-  Serial.println(" m/s^2 ");
+  accel.read();      // get X Y and Z data at once
 
-  dataString = "";
-  dataString += String(lis.x);
-  dataString += ",";
-  dataString += String(lis.y);
-  dataString += ",";
-  dataString += String(lis.z);
+  logAccelData(accel.x, accel.y, accel.z);
 
-  if (dataFile) {
-    dataFile.println(dataString);
-    dataFile.flush();
-    // print to the serial port too:
-    Serial.println(dataString);
-  }
-  else {
-    Serial.println("File not open");
-    return;
-  }
-  delay(100);
+
+  delay(1);
 
 
 }
