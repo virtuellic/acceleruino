@@ -29,8 +29,8 @@ Datalogger designed to track forces experienced during shipping
   + better performance
 + [x] Add support for external DS3231 RTC
 + [ ] Add constants for initialization parameters
-  + range (ie. 2G - 16G)
-  + sample rate
+  + [x] range (ie. 2G - 16G)
+  + [x] sample rate
   + trigger threshold
   + wake interval (ie. 30 minutes)
   + wake log duration (ie. 5 sec)
