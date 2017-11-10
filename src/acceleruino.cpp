@@ -1,5 +1,3 @@
-// Basic demo for accelerometer readings from Adafruit LIS3DH
-
 #include <Wire.h>
 #include "Adafruit_LIS3DH.h"
 #include <Adafruit_Sensor.h>
