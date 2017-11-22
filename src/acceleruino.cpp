@@ -28,6 +28,10 @@ File dataFile;
 
 SdFat SD;
 
+int accelIntPin = 16;
+int LIS3DH_ADDR = 0x18; // change this to 0x19 for alternative i2c address
+int reading = 0; //counter for number of readings taken - for diagnostic use
+
 // I2C
 Adafruit_LIS3DH accel = Adafruit_LIS3DH();
 
@@ -42,6 +46,23 @@ void sd_dateTime_callback(uint16_t* date, uint16_t* time) {
 
   // return time using FAT_TIME macro to format fields
   *time = FAT_TIME(now.hour(), now.minute(), now.second());
+}
+
+unsigned int readAccelRegister(byte reg) {
+  Wire.beginTransmission(LIS3DH_ADDR);
+  Wire.write(reg);
+  Wire.endTransmission();
+
+  Wire.requestFrom(LIS3DH_ADDR, 1);
+  return Wire.read();
+}
+
+
+void writeAccelRegister(byte reg, byte data) {
+  Wire.beginTransmission(LIS3DH_ADDR);
+  Wire.write(reg);
+  Wire.write(data);
+  Wire.endTransmission();
 }
 
 DateTime getGPRSDateTime() {
@@ -81,6 +102,24 @@ void logAccelData(int x, int y, int z) {
 
 }
 
+void init_ACC(void)
+{
+    // configurations for control registers
+    writeAccelRegister(0x20, 0x57); //Write A7h into CTRL_REG1;      // Turn on the sensor, enable X, Y, Z axes with ODR = 100Hz normal mode.
+    writeAccelRegister(0x21, 0x09); //Write 09h into CTRL_REG2;      // High-pass filter (HPF) enabled
+    writeAccelRegister(0x22, 0x40); //Write 40h into CTRL_REG3;      // ACC AOI1 interrupt signal is routed to INT1 pin.
+    writeAccelRegister(0x23, 0x00); //Write 00h into CTRL_REG4;      // Full Scale = +/-2 g
+    writeAccelRegister(0x24, 0x08); //Write 08h into CTRL_REG5;      // Default value is 00 for no latching. Interrupt signals on INT1 pin is not latched.
+                                                                //Users don’t need to read the INT1_SRC register to clear the interrupt signal.
+    // configurations for wakeup and motionless detection
+    writeAccelRegister(0x32, 0x10); //Write 10h into INT1_THS;          // Threshold (THS) = 16LSBs * 15.625mg/LSB = 250mg.
+    writeAccelRegister(0x33, 0x00); //Write 00h into INT1_DURATION;     // Duration = 1LSBs * (1/10Hz) = 0.1s.
+    //readRegister();  //Dummy read to force the HP filter to set reference acceleration/tilt value
+    writeAccelRegister(0x30, 0x2A); //Write 2Ah into INT1_CFG;          // Enable XLIE, YLIE, ZLIE interrupt generation, OR logic.
+
+}
+
+
 void setup(void) {
 
   while (!Serial);
@@ -97,7 +136,7 @@ void setup(void) {
   Serial.println("Initializing accelerometer....");
   int RETRY_VAL = 10;
   int cnt = 0;
-  while (!accel.begin(0x18)) {
+  while (!accel.begin(LIS3DH_ADDR)) {
     Serial.print("Error inializing accelerometer...");
     Serial.println("retrying in 1 second");
     delay (1000);
@@ -108,16 +147,16 @@ void setup(void) {
       return;
     }
   }
-
-  accel.setRange(RANGE);   // 2, 4, 8 or 16 G!
+  init_ACC();
 
   Serial.print("Range = "); Serial.print(2 << accel.getRange());
+  //Serial.print(accel.getRange(), BIN);
   Serial.println("G");
-
-  accel.setDataRate(RATE);
 
   Serial.println("Success initializing accelerometer");
   // END Accelerometer initialization
+
+  delay(6000);
 
   // BEGIN RTC initialization
   Serial.println("Initializing DS3231 RTC");
@@ -176,6 +215,15 @@ void loop() {
   while(stopFlag);
 
   accel.read();      // get X Y and Z data at once
+
+  if(digitalRead(accelIntPin) == HIGH) {
+    Serial.print("  \tinterrupt: ");
+    Serial.print(reading++); Serial.print(",  ");
+    Serial.print(readAccelRegister(0x21)); Serial.print(",  "); //read register to reset high-pass filter
+    Serial.print(readAccelRegister(0x26)); Serial.print(",  "); //read register to set reference acceleration
+    Serial.print(readAccelRegister(LIS3DH_REG_INT1SRC)); Serial.print(",  "); //Read INT1_SRC to de-latch;
+  }
+  Serial.println();
 
   logAccelData(accel.x, accel.y, accel.z);
 
