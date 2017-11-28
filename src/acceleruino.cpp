@@ -42,11 +42,18 @@ RTC_DS3231 rtc;
 #define FONA_RX 2
 #define FONA_TX 3
 #define FONA_RST 4
+#define FONA_KEY 8
 
 #define PIN 9170
 
+int FONA_ON = 0;
+
 HardwareSerial *fonaSerial = &Serial1;
 Adafruit_FONA fona = Adafruit_FONA(FONA_RST);
+
+
+
+void fona_power_on(void);
 
 void sd_dateTime_callback(uint16_t* date, uint16_t* time) {
 
@@ -81,17 +88,15 @@ DateTime getGPRSDateTime() {  // TBD
   return DateTime(F(__DATE__), F(__TIME__));
 
 }
-char[] getGPRSLocation(void) {
+void getGPRSLocation(char *location) {
   uint16_t returncode;
-  char location[255];
   if (!fona.getGSMLoc(&returncode, location, 250))
     Serial.println(F("Failed!"));
   if (returncode == 0) {
-    Serial.println(replybuffer);
+    Serial.println(location);
   } else {
     Serial.print(F("Fail code #")); Serial.println(returncode);
   }
-  return location;
 
 }
 void logAccelData(int x, int y, int z) {
@@ -104,16 +109,17 @@ void logAccelData(int x, int y, int z) {
     fona_power_on();
   }
 
-  char loc = getGPRSLocation();
+  char location[255];
+  getGPRSLocation(location);
 
   Serial.print(ts);
-  Serial.print("\tLoc: "); Serial.print(loc);
+  Serial.print("\tLoc: "); Serial.print(location);
   Serial.print("  \tX:  "); Serial.print(x);
   Serial.print("  \tY:  "); Serial.print(y);
   Serial.print("  \tZ:  "); Serial.println(z);
 
   if (dataFile) {
-    dataFile.print(loc);
+    dataFile.print(location);
     dataFile.print(",");
     dataFile.print(ts);
     dataFile.print(",");
@@ -219,6 +225,7 @@ void fona_power_off(void) {
   delay(2000);
   digitalWrite(FONA_KEY, HIGH);
   //delay(3000);
+  FONA_ON = 0;
 }
 void fona_power_on(void) {
 
@@ -241,6 +248,7 @@ void fona_power_on(void) {
     if (n == 3) Serial.println(F("Denied"));
     if (n == 4) Serial.println(F("Unknown"));
     if (n == 5) Serial.println(F("Registered roaming"));
+    FONA_ON = 1;
 
   }
   else {
@@ -248,19 +256,7 @@ void fona_power_on(void) {
   }
 
 }
-char[] getGPRSLocation(void) {
-  uint16_t returncode;
-  char location[255];
-  if (!fona.getGSMLoc(&returncode, location, 250))
-    Serial.println(F("Failed!"));
-  if (returncode == 0) {
-    Serial.println(replybuffer);
-  } else {
-    Serial.print(F("Fail code #")); Serial.println(returncode);
-  }
-  return location;
 
-}
 uint8_t is_accel_interrupt(void) {
   return digitalRead(accelIntPin) == HIGH;
 }
